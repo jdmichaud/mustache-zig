@@ -110,7 +110,7 @@ pub fn Parser(comptime options: TemplateOptions) type {
                 AbortError.ParserAbortedError => return false,
                 else => {
                     const Error = LoadError || RenderError(@TypeOf(render));
-                    return @errSetCast(Error, err);
+                    return @as(Error, @errSetCast(err));
                 },
             };
 
@@ -129,7 +129,8 @@ pub fn Parser(comptime options: TemplateOptions) type {
                 };
             }
 
-            while (try self.inner_state.text_scanner.next(self.gpa)) |*text_part| {
+            var tp = try self.inner_state.text_scanner.next(self.gpa);
+            while (tp) |*text_part| {
                 switch (text_part.part_type) {
                     .static_text => {
                         // TODO: Static text must be ignored if inside a "parent" tag
@@ -173,7 +174,7 @@ pub fn Parser(comptime options: TemplateOptions) type {
                             return self.abort(ParseError.ClosingTagMismatch, text_part);
                         }
 
-                        open_node.children_count = @intCast(u32, nodes.items.len - initial_index);
+                        open_node.children_count = @as(u32, @intCast(nodes.items.len - initial_index));
 
                         if (allow_lambdas and open_node.text_part.part_type == .section) {
                             if (try self.inner_state.text_scanner.endBookmark(nodes)) |bookmark| {
@@ -190,7 +191,7 @@ pub fn Parser(comptime options: TemplateOptions) type {
 
                 // Adding
                 var current_node: *Node = current_node: {
-                    const index = @intCast(u32, nodes.items.len);
+                    const index = @as(u32, @intCast(nodes.items.len));
                     const node = Node{
                         .index = index,
                         .identifier = try self.parseIdentifier(text_part),
@@ -372,7 +373,7 @@ pub fn Parser(comptime options: TemplateOptions) type {
                 }
             }
 
-            const elements = if (options.output == .render or options.load_mode == .comptime_loaded) list.items else list.toOwnedSlice(self.gpa);
+            const elements = if (options.output == .render or options.load_mode == .comptime_loaded) list.items else try list.toOwnedSlice(self.gpa);
             try render.render(elements);
         }
 
@@ -395,7 +396,7 @@ pub fn Parser(comptime options: TemplateOptions) type {
 
         pub fn parsePath(self: *Self, identifier: []const u8) Allocator.Error!Element.Path {
             const action = struct {
-                pub fn action(ctx: *Self, iterator: *std.mem.TokenIterator(u8), index: usize) Allocator.Error!?[][]const u8 {
+                pub fn action(ctx: *Self, iterator: *std.mem.TokenIterator(u8, .any), index: usize) Allocator.Error!?[][]const u8 {
                     if (iterator.next()) |part| {
                         var path = (try action(ctx, iterator, index + 1)) orelse unreachable;
                         path[index] = try ctx.dupe(part);

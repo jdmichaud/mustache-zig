@@ -44,7 +44,7 @@ pub const ContextType = enum {
     pub fn fromData(comptime Data: type) ContextType {
         if (Data == json.Value or (trait.isSingleItemPtr(Data) and meta.Child(Data) == json.Value)) {
             return .json;
-        } else if (Data == json.ValueTree or (trait.isSingleItemPtr(Data) and meta.Child(Data) == json.ValueTree)) {
+        } else if (Data == json.Parsed(json.Value) or (trait.isSingleItemPtr(Data) and meta.Child(Data) == json.Parsed(json.Value))) {
             return .json;
         } else if (Data == ffi_extern_types.UserData) {
             return .ffi;
@@ -539,7 +539,8 @@ pub fn RenderEngine(comptime context_type: ContextType, comptime Writer: type, c
                             const section_children = elements[index .. index + section.children_count];
                             index += section.children_count;
 
-                            if (self.getIterator(section.path)) |*iterator| {
+                            var it = self.getIterator(section.path);
+                            if (it) |*iterator| {
                                 if (self.lambdasSupported()) {
                                     if (iterator.lambda()) |lambda_ctx| {
                                         assert(section.inner_text != null);
@@ -866,7 +867,8 @@ pub fn RenderEngine(comptime context_type: ContextType, comptime Writer: type, c
                             const section_children = elements[index .. index + section.children_count];
                             index += section.children_count;
 
-                            if (self.getIterator(section.path)) |*iterator| {
+                            var it = self.getIterator(section.path);
+                            if (it) |*iterator| {
                                 while (iterator.next()) |item_ctx| {
                                     const current_level = self.stack;
                                     const next_level = ContextStack{
@@ -1695,14 +1697,14 @@ const tests = struct {
                 const expected = "";
 
                 {
-                    var data = .{ .@"null" = null };
+                    var data = .{ .null = null };
 
                     try expectRender(template_text, data, expected);
                 }
 
                 {
-                    const Data = struct { @"null": ?[]i32 };
-                    var data = Data{ .@"null" = null };
+                    const Data = struct { null: ?[]i32 };
+                    var data = Data{ .null = null };
 
                     try expectRender(template_text, data, expected);
                 }
@@ -2402,14 +2404,14 @@ const tests = struct {
 
                 {
                     // comptime
-                    var data = .{ .@"null" = null };
+                    var data = .{ .null = null };
                     try expectRender(template_text, data, expected);
                 }
 
                 {
                     // runtime
-                    const Data = struct { @"null": ?u0 };
-                    var data = Data{ .@"null" = null };
+                    const Data = struct { null: ?u0 };
+                    var data = Data{ .null = null };
                     try expectRender(template_text, data, expected);
                 }
             }
@@ -3296,7 +3298,7 @@ const tests = struct {
                     var text = try ctx.renderAlloc(testing.allocator, ctx.inner_text);
                     defer testing.allocator.free(text);
 
-                    for (text) |char, i| {
+                    for (text, 0..) |char, i| {
                         text[i] = std.ascii.toLower(char);
                     }
 
@@ -3318,7 +3320,7 @@ const tests = struct {
                     var text = try ctx.renderAlloc(testing.allocator, ctx.inner_text);
                     defer testing.allocator.free(text);
 
-                    for (text) |char, i| {
+                    for (text, 0..) |char, i| {
                         text[i] = std.ascii.toLower(char);
                     }
 
@@ -3332,7 +3334,7 @@ const tests = struct {
                     const expected = "name=phill";
                     try testing.expectEqualStrings(expected, text);
 
-                    for (text) |char, i| {
+                    for (text, 0..) |char, i| {
                         text[i] = std.ascii.toUpper(char);
                     }
 
@@ -4277,7 +4279,7 @@ const tests = struct {
             comptime var comptime_partials: [partials.len]PartialTuple = undefined;
 
             comptime {
-                inline for (partials) |item, index| {
+                inline for (partials, 0..) |item, index| {
                     var partial_template = mustache.parseComptime(item[1], .{}, .{});
                     comptime_partials[index] = .{ item[0], partial_template };
                 }
